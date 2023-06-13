@@ -132,3 +132,12 @@ steps:
       # ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$(tomcatUsername)@$(tomcatVMAddress)" "/opt/tomcat/bin/catalina.sh stop"
       # ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$(tomcatUsername)@$(tomcatVMAddress)" "/opt/tomcat/bin/catalina.sh start"
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------
+jobs:
+- deployment: Deploy
+  displayName: 'Deploy to deployment group'
+  environment: 'deployment_group_name'
+  strategy:
+    runOnce:
+      deploy:
+        steps:
+        - script: echo Deploying to deployment group
