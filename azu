@@ -1,0 +1,134 @@
+ - script: |
+    echo "<settings>
+            <pluginGroups>
+              <pluginGroup>com.example</pluginGroup>
+            </pluginGroups>
+            <profiles>
+              <profile>
+                <id>sonar</id>
+                <properties>
+                  <sonar.host.url>https://your-sonarqube-url.com</sonar.host.url>
+                </properties>
+              </profile>
+            </profiles>
+          </settings>" > $(Agent.BuildDirectory)/settings.xml
+  displayName: 'Create custom settings.xml'
+
+- task: Maven@3
+  inputs:
+    mavenPomFile: 'pom.xml'
+    goals: 'clean package'
+    publishJUnitResults: true
+    options: '-s $(Agent.BuildDirectory)/settings.xml'
+    ------------------------------------------------------------
+    
+variables:
+  tomcatVMAddress: '<your_vm_address>'  # Replace with the IP or hostname of your Tomcat VM
+  tomcatUsername: '<tomcat_username>'   # Replace with the username to access the Tomcat VM
+  tomcatPassword: '<tomcat_password>'   # Replace with the password to access the Tomcat VM
+  artifactsFeed: '<artifacts_feed_name>' # Replace with the name of your Azure Artifacts feed
+
+steps:
+- task: UseJavaVersion@1
+  inputs:
+    versionSpec: '11'
+
+- task: MavenAuthenticate@0
+
+- task: Maven@3
+  inputs:
+    mavenPomFile: 'pom.xml'
+    goals: 'clean package'
+    publishJUnitResults: true
+
+- task: CopyFiles@2
+  inputs:
+    sourceFolder: '$(Pipeline.Workspace)/target'
+    contents: '**/*.war'
+    targetFolder: '$(Pipeline.Workspace)/artifacts'
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    PathtoPublish: '$(Pipeline.Workspace)/artifacts'
+    ArtifactName: 'war-artifacts'
+    publishLocation: 'Container'
+    targetPath: '$(Build.ArtifactStagingDirectory)'
+
+- task: PublishPipelineArtifact@1
+  inputs:
+    targetPath: '$(Build.ArtifactStagingDirectory)'
+    artifactName: 'war-artifacts'
+
+- task: DownloadPipelineArtifact@2
+  inputs:
+    artifactName: 'war-artifacts'
+    targetPath: '$(Pipeline.Workspace)/downloaded-artifacts'
+    
+    
+---------------------------------------------------------------------
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  tomcatVMAddress: '<your_vm_address>'  # Replace with the IP or hostname of your Tomcat VM
+  tomcatUsername: '<tomcat_username>'   # Replace with the username to access the Tomcat VM
+  tomcatPassword: '<tomcat_password>'   # Replace with the password to access the Tomcat VM
+  artifactsFeed: '<artifacts_feed_name>' # Replace with the name of your Azure Artifacts feed
+
+steps:
+- task: UseJavaVersion@1
+  inputs:
+    versionSpec: '11'
+
+- task: MavenAuthenticate@0
+
+- task: Maven@3
+  inputs:
+    mavenPomFile: 'pom.xml'
+    goals: 'clean package'
+    publishJUnitResults: true
+
+- task: CopyFiles@2
+  inputs:
+    sourceFolder: '$(Pipeline.Workspace)/target'
+    contents: '**/*.war'
+    targetFolder: '$(Pipeline.Workspace)/artifacts'
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    PathtoPublish: '$(Pipeline.Workspace)/artifacts'
+    ArtifactName: 'war-artifacts'
+    publishLocation: 'Container'
+    targetPath: '$(Build.ArtifactStagingDirectory)'
+
+- task: PublishPipelineArtifact@1
+  inputs:
+    targetPath: '$(Build.ArtifactStagingDirectory)'
+    artifactName: 'war-artifacts'
+
+- task: DownloadPipelineArtifact@2
+  inputs:
+    artifactName: 'war-artifacts'
+    targetPath: '$(Pipeline.Workspace)/downloaded-artifacts'
+
+- task: PowerShell@2
+  inputs:
+    targetType: 'inline'
+    script: |
+      $targetPath = "$(Pipeline.Workspace)/downloaded-artifacts"
+
+      # Define the remote path to copy the WAR file on the Tomcat VM
+      $remotePath = "/opt/tomcat/webapps"
+
+      # Copy the WAR file to the Tomcat VM using SCP
+      scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$targetPath/*.war" "$(tomcatUsername)@$(tomcatVMAddress):$remotePath"
+
+      # Restart Tomcat service on the VM (optional)
+      # ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$(tomcatUsername)@$(tomcatVMAddress)" "/opt/tomcat/bin/catalina.sh stop"
+      # ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$(tomcatUsername)@$(tomcatVMAddress)" "/opt/tomcat/bin/catalina.sh start"
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
